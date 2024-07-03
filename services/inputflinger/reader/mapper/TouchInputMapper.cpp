@@ -946,6 +946,9 @@ void TouchInputMapper::configureInputDevice(nsecs_t when, bool* outResetNeeded) 
 
         if (mDeviceMode == DeviceMode::DIRECT || mDeviceMode == DeviceMode::POINTER) {
             // Convert rotated viewport to the natural orientation.
+#ifdef ENABLE_TN_MD_TOUCH
+            int32_t naturalLogicalWidth, naturalLogicalHeight;
+#endif
             int32_t naturalPhysicalWidth, naturalPhysicalHeight;
             int32_t naturalPhysicalLeft, naturalPhysicalTop;
             int32_t naturalDeviceWidth, naturalDeviceHeight;
@@ -957,6 +960,10 @@ void TouchInputMapper::configureInputDevice(nsecs_t when, bool* outResetNeeded) 
                     (mViewport.orientation - static_cast<int32_t>(mParameters.orientation) + 4) % 4;
             switch (naturalDeviceOrientation) {
                 case DISPLAY_ORIENTATION_90:
+#ifdef ENABLE_TN_MD_TOUCH
+                    naturalLogicalWidth = mViewport.logicalBottom - mViewport.logicalTop;
+                    naturalLogicalHeight = mViewport.logicalRight - mViewport.logicalLeft;
+#endif
                     naturalPhysicalWidth = mViewport.physicalBottom - mViewport.physicalTop;
                     naturalPhysicalHeight = mViewport.physicalRight - mViewport.physicalLeft;
                     naturalPhysicalLeft = mViewport.deviceHeight - mViewport.physicalBottom;
@@ -965,6 +972,10 @@ void TouchInputMapper::configureInputDevice(nsecs_t when, bool* outResetNeeded) 
                     naturalDeviceHeight = mViewport.deviceWidth;
                     break;
                 case DISPLAY_ORIENTATION_180:
+#ifdef ENABLE_TN_MD_TOUCH
+                    naturalLogicalWidth = mViewport.logicalRight - mViewport.logicalLeft;
+                    naturalLogicalHeight = mViewport.logicalBottom - mViewport.logicalTop;
+#endif
                     naturalPhysicalWidth = mViewport.physicalRight - mViewport.physicalLeft;
                     naturalPhysicalHeight = mViewport.physicalBottom - mViewport.physicalTop;
                     naturalPhysicalLeft = mViewport.deviceWidth - mViewport.physicalRight;
@@ -973,6 +984,10 @@ void TouchInputMapper::configureInputDevice(nsecs_t when, bool* outResetNeeded) 
                     naturalDeviceHeight = mViewport.deviceHeight;
                     break;
                 case DISPLAY_ORIENTATION_270:
+#ifdef ENABLE_TN_MD_TOUCH
+                    naturalLogicalWidth = mViewport.logicalBottom - mViewport.logicalTop;
+                    naturalLogicalHeight = mViewport.logicalRight - mViewport.logicalLeft;
+#endif
                     naturalPhysicalWidth = mViewport.physicalBottom - mViewport.physicalTop;
                     naturalPhysicalHeight = mViewport.physicalRight - mViewport.physicalLeft;
                     naturalPhysicalLeft = mViewport.physicalTop;
@@ -982,6 +997,10 @@ void TouchInputMapper::configureInputDevice(nsecs_t when, bool* outResetNeeded) 
                     break;
                 case DISPLAY_ORIENTATION_0:
                 default:
+#ifdef ENABLE_TN_MD_TOUCH
+                    naturalLogicalWidth = mViewport.logicalRight - mViewport.logicalLeft;
+                    naturalLogicalHeight = mViewport.logicalBottom - mViewport.logicalTop;
+#endif
                     naturalPhysicalWidth = mViewport.physicalRight - mViewport.physicalLeft;
                     naturalPhysicalHeight = mViewport.physicalBottom - mViewport.physicalTop;
                     naturalPhysicalLeft = mViewport.physicalLeft;
@@ -997,15 +1016,23 @@ void TouchInputMapper::configureInputDevice(nsecs_t when, bool* outResetNeeded) 
                 naturalPhysicalWidth = naturalPhysicalWidth == 0 ? 1 : naturalPhysicalWidth;
             }
 
+            const int32_t oldDisplayWidth = mDisplayWidth;
+            const int32_t oldDisplayHeight = mDisplayHeight;
+#ifdef ENABLE_TN_MD_TOUCH
+            mDisplayWidth = naturalLogicalWidth * naturalDeviceWidth / naturalPhysicalWidth;
+            mDisplayHeight = naturalLogicalHeight * naturalDeviceHeight / naturalPhysicalHeight;
+            mPhysicalLeft = naturalPhysicalLeft * naturalLogicalWidth / naturalPhysicalWidth;
+            mPhysicalTop = naturalPhysicalTop * naturalLogicalHeight / naturalPhysicalHeight;
+            mPhysicalWidth = naturalLogicalWidth;
+            mPhysicalHeight = naturalLogicalHeight;
+#else
+            mDisplayWidth = naturalDeviceWidth;
+            mDisplayHeight = naturalDeviceHeight;
             mPhysicalWidth = naturalPhysicalWidth;
             mPhysicalHeight = naturalPhysicalHeight;
             mPhysicalLeft = naturalPhysicalLeft;
             mPhysicalTop = naturalPhysicalTop;
-
-            const int32_t oldDisplayWidth = mDisplayWidth;
-            const int32_t oldDisplayHeight = mDisplayHeight;
-            mDisplayWidth = naturalDeviceWidth;
-            mDisplayHeight = naturalDeviceHeight;
+#endif
 
             // InputReader works in the un-rotated display coordinate space, so we don't need to do
             // anything if the device is already orientation-aware. If the device is not
@@ -3759,6 +3786,30 @@ void TouchInputMapper::rotateAndScale(float& x, float& y) const {
     // 90 - swap x/y and reverse y.
     // 180 - reverse x, y.
     // 270 - swap x/y and reverse x.
+#ifdef ENABLE_TN_MD_TOUCH
+    (void)xScaledMax;
+    (void)yScaledMax;
+    switch (mInputDeviceOrientation) {
+        case DISPLAY_ORIENTATION_0:
+            x = xScaled - mPhysicalLeft;
+            y = yScaled - mPhysicalTop;
+            break;
+        case DISPLAY_ORIENTATION_90:
+            y = mPhysicalLeft + mPhysicalWidth - xScaled;
+            x = yScaled - mPhysicalTop;
+            break;
+        case DISPLAY_ORIENTATION_180:
+            x = mPhysicalLeft + mPhysicalWidth - xScaled;
+            y = mPhysicalTop + mPhysicalHeight - yScaled;
+            break;
+        case DISPLAY_ORIENTATION_270:
+            y = xScaled - mPhysicalLeft;
+            x = mPhysicalTop + mPhysicalHeight - yScaled;
+            break;
+        default:
+            assert(false);
+    }
+#else
     switch (mInputDeviceOrientation) {
         case DISPLAY_ORIENTATION_0:
             x = xScaled;
@@ -3779,6 +3830,7 @@ void TouchInputMapper::rotateAndScale(float& x, float& y) const {
         default:
             assert(false);
     }
+#endif
 }
 
 bool TouchInputMapper::isPointInsidePhysicalFrame(int32_t x, int32_t y) const {

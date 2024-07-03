@@ -21,6 +21,27 @@ package {
     default_applicable_licenses: ["frameworks_native_license"],
 }
 
+bootstrap_go_package {
+    name: "soong-inputflinger",
+    pkgPath: "android/soong/frameworks/native/services/inputflinger/reader",
+    deps: [
+        "blueprint",
+        "blueprint-pathtools",
+        "soong",
+        "soong-android",
+        "soong-cc",
+        "soong-genrule",
+    ],
+    srcs: [
+        "inputreader.go",
+    ],
+    pluginFor: ["soong_build"],
+}
+
+inputreader_go {
+    name: "inputreader_go_defaults"
+}
+
 cc_library_headers {
     name: "libinputreader_headers",
     export_include_dirs: [
@@ -60,6 +81,7 @@ filegroup {
 
 cc_defaults {
     name: "libinputreader_defaults",
+    defaults: ["inputreader_go_defaults"],
     srcs: [":libinputreader_sources"],
     shared_libs: [
         "libbase",
